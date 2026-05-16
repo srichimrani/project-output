@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Face Recognition System – CSC-350 AI Project</title>
+  <style>
+    :root {
+      --bg:        #0f1117;
+      --card:      #1a1d27;
+      --border:    #2e3247;
+      --accent:    #4f8ef7;
+      --green:     #22c55e;
+      --red:       #ef4444;
+      --text:      #e2e8f0;
+      --muted:     #8b93a7;
+      --knn-color: #818cf8;
+      --tm-color:  #38bdf8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', Arial, sans-serif; min-height: 100vh; }
+
+    /* ── Header ── */
+    header {
+      background: linear-gradient(135deg, #1e2236 0%, #11141e 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 18px 32px;
+      display: flex; align-items: center; gap: 14px;
+    }
+    header .logo { font-size: 28px; }
+    header h1 { font-size: 20px; font-weight: 700; }
+    header p  { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .badge {
+      margin-left: auto; background: #1e2236; border: 1px solid var(--border);
+      border-radius: 20px; padding: 4px 14px; font-size: 12px; color: var(--muted);
+      white-space: nowrap;
+    }
+
+    /* ── Layout ── */
+    .container { max-width: 1100px; margin: 0 auto; padding: 32px 20px; }
+
+    /* ── Upload Card ── */
+    .upload-card {
+      background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+      padding: 32px; text-align: center; margin-bottom: 28px;
+    }
+    .upload-area {
+      border: 2px dashed var(--border); border-radius: 12px;
+      padding: 40px 20px; cursor: pointer; transition: border-color .2s;
+      position: relative;
+    }
+    .upload-area:hover { border-color: var(--accent); }
+    .upload-area input[type=file] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+    }
+    .upload-icon { font-size: 48px; margin-bottom: 10px; }
+    .upload-area p { color: var(--muted); font-size: 14px; }
+    .upload-area strong { color: var(--accent); }
+
+    #preview-section { display: none; margin-top: 20px; }
+    #preview-img {
+      max-width: 280px; max-height: 280px; border-radius: 12px;
+      border: 2px solid var(--border); object-fit: cover;
+    }
+    .file-name { font-size: 13px; color: var(--muted); margin-top: 8px; }
+
+    /* ── Buttons ── */
+    .btn-row { display: flex; gap: 12px; justify-content: center; margin-top: 24px; flex-wrap: wrap; }
+    .btn {
+      padding: 12px 28px; border-radius: 10px; border: none; cursor: pointer;
+      font-size: 15px; font-weight: 600; transition: all .2s; display: flex; align-items: center; gap: 8px;
+    }
+    .btn-compare {
+      background: linear-gradient(135deg, var(--knn-color), var(--tm-color));
+      color: white; font-size: 16px; padding: 14px 36px;
+    }
+    .btn-compare:hover { opacity: .88; transform: translateY(-1px); }
+    .btn-knn  { background: var(--knn-color); color: white; }
+    .btn-tm   { background: var(--tm-color);  color: #0f1117; }
+    .btn:hover { opacity: .85; }
+    .btn:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+
+    /* ── Results ── */
+    .results-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 28px;
+    }
+    @media (max-width: 640px) { .results-grid { grid-template-columns: 1fr; } }
+
+    .result-card {
+      background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+      padding: 24px; display: none;
+    }
+    .result-card.visible { display: block; }
+
+    .model-badge {
+      display: inline-block; border-radius: 20px; padding: 4px 14px;
+      font-size: 12px; font-weight: 700; margin-bottom: 16px; text-transform: uppercase; letter-spacing: .5px;
+    }
+    .badge-knn { background: rgba(129,140,248,.15); color: var(--knn-color); border: 1px solid var(--knn-color); }
+    .badge-tm  { background: rgba(56,189,248,.15);  color: var(--tm-color);  border: 1px solid var(--tm-color); }
+
+    .verdict {
+      font-size: 32px; font-weight: 800; margin: 10px 0 4px;
+    }
+    .verdict.me     { color: var(--green); }
+    .verdict.not-me { color: var(--red); }
+
+    .verdict-icon { font-size: 40px; margin-bottom: 6px; }
+
+    .conf-label { font-size: 13px; color: var(--muted); margin: 12px 0 6px; }
+    .conf-bar-wrap { background: #252936; border-radius: 999px; height: 10px; overflow: hidden; }
+    .conf-bar { height: 100%; border-radius: 999px; transition: width .6s ease; }
+    .conf-bar.green-bar { background: linear-gradient(90deg, #16a34a, #22c55e); }
+    .conf-bar.red-bar   { background: linear-gradient(90deg, #b91c1c, #ef4444); }
+    .conf-pct { font-size: 22px; font-weight: 700; margin-top: 8px; }
+
+    /* TM breakdown */
+    .tm-breakdown { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 14px; }
+    .tm-breakdown-title { font-size: 12px; color: var(--muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: .5px; }
+    .mini-bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 13px; }
+    .mini-bar-label { width: 60px; color: var(--muted); }
+    .mini-bar-wrap { flex: 1; background: #252936; border-radius: 999px; height: 6px; overflow: hidden; }
+    .mini-bar { height: 100%; border-radius: 999px; }
+    .mini-bar-pct { width: 42px; text-align: right; font-weight: 600; }
+
+    /* ── Comparison Table ── */
+    .compare-card {
+      background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+      padding: 28px; margin-bottom: 28px; display: none;
+    }
+    .compare-card.visible { display: block; }
+    .compare-card h2 { font-size: 18px; margin-bottom: 20px; display: flex; align-items: center; gap: 8px; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th { background: #252936; color: var(--muted); font-size: 12px; text-transform: uppercase;
+         letter-spacing: .5px; padding: 10px 16px; text-align: left; border-bottom: 1px solid var(--border); }
+    td { padding: 12px 16px; border-bottom: 1px solid #1e2236; }
+    tr:last-child td { border-bottom: none; }
+    .highlight { background: rgba(79,142,247,.06); }
+
+    .tag-agree    { background: rgba(34,197,94,.12); color: var(--green); border: 1px solid var(--green);
+                    border-radius: 20px; padding: 3px 12px; font-size: 12px; font-weight: 700; }
+    .tag-disagree { background: rgba(239,68,68,.12); color: var(--red);   border: 1px solid var(--red);
+                    border-radius: 20px; padding: 3px 12px; font-size: 12px; font-weight: 700; }
+    .tag-winner   { background: rgba(79,142,247,.15); color: var(--accent); border: 1px solid var(--accent);
+                    border-radius: 20px; padding: 3px 12px; font-size: 12px; font-weight: 700; }
+
+    /* ── Error / Loading ── */
+    #error-msg {
+      display: none; background: rgba(239,68,68,.1); border: 1px solid rgba(239,68,68,.3);
+      color: var(--red); border-radius: 10px; padding: 14px 18px; margin-top: 16px; font-size: 14px;
+    }
+    .spinner { display: none; text-align: center; padding: 30px; }
+    .spinner.active { display: block; }
+    .spin { display: inline-block; width: 36px; height: 36px; border: 3px solid var(--border);
+            border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Info Section ── */
+    .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 28px; }
+    @media (max-width: 640px) { .info-grid { grid-template-columns: 1fr; } }
+    .info-card {
+      background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 18px;
+    }
+    .info-card h3 { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 10px; }
+    .info-card p  { font-size: 13px; color: var(--text); line-height: 1.6; }
+    .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+    .dot.green { background: var(--green); } .dot.purple { background: var(--knn-color); }
+    .dot.blue  { background: var(--tm-color); }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">🎭</div>
+  <div>
+    <h1>Visual Face Recognition System</h1>
+    <p>CSC-350 Artificial Intelligence — Web-Based ML Comparison</p>
+  </div>
+  <div class="badge">kNN + Teachable Machine</div>
+</header>
+
+<div class="container">
+
+  <!-- Info Cards -->
+  <div class="info-grid">
+    <div class="info-card">
+      <h3><span class="dot purple"></span>Model 1 — Conventional ML (kNN)</h3>
+      <p>Uses HOG (Histogram of Oriented Gradients) + LBP (Local Binary Pattern) feature extraction with k-Nearest Neighbors classifier, trained using scikit-learn.</p>
+    </div>
+    <div class="info-card">
+      <h3><span class="dot blue"></span>Model 2 — Google Teachable Machine</h3>
+      <p>A deep learning CNN model trained using Google's Teachable Machine platform and exported as TensorFlow.js format, loaded via tf_keras.</p>
+    </div>
+  </div>
+
+  <!-- Upload Card -->
+  <div class="upload-card">
+    <div class="upload-area" id="drop-zone">
+      <input type="file" id="imageUpload" accept="image/*">
+      <div class="upload-icon">📷</div>
+      <p><strong>Click or drag</strong> an image here to upload</p>
+      <p style="margin-top:6px;">Supports JPG, PNG, WEBP — Face must be clearly visible</p>
+    </div>
+
+    <div id="preview-section">
+      <img id="preview-img" alt="Preview">
+      <div class="file-name" id="file-name-label"></div>
+    </div>
+
+    <div id="error-msg">⚠️ <span id="error-text"></span></div>
+
+    <div class="btn-row">
+      <button class="btn btn-compare" id="btn-compare" onclick="runCompare()" disabled>
+        ⚡ Compare Both Models
+      </button>
+      <button class="btn btn-knn" id="btn-knn" onclick="runKNN()" disabled>
+        🔍 kNN Only
+      </button>
+      <button class="btn btn-tm" id="btn-tm" onclick="runTM()" disabled>
+        🧠 Teachable Machine Only
+      </button>
+    </div>
+
+    <div class="spinner" id="spinner">
+      <div class="spin"></div>
+      <p style="margin-top:12px; color:var(--muted); font-size:13px;">Running prediction…</p>
+    </div>
+  </div>
+
+  <!-- Result Cards -->
+  <div class="results-grid">
+    <!-- kNN Result -->
+    <div class="result-card" id="knn-card">
+      <div class="model-badge badge-knn">kNN — HOG + LBP</div>
+      <div class="verdict-icon" id="knn-icon"></div>
+      <div class="verdict" id="knn-verdict"></div>
+      <div class="conf-label">Confidence</div>
+      <div class="conf-bar-wrap"><div class="conf-bar" id="knn-bar" style="width:0%"></div></div>
+      <div class="conf-pct" id="knn-pct"></div>
+    </div>
+
+    <!-- TM Result -->
+    <div class="result-card" id="tm-card">
+      <div class="model-badge badge-tm">Teachable Machine — CNN</div>
+      <div class="verdict-icon" id="tm-icon"></div>
+      <div class="verdict" id="tm-verdict"></div>
+      <div class="conf-label">Confidence</div>
+      <div class="conf-bar-wrap"><div class="conf-bar" id="tm-bar" style="width:0%"></div></div>
+      <div class="conf-pct" id="tm-pct"></div>
+      <div class="tm-breakdown" id="tm-breakdown" style="display:none">
+        <div class="tm-breakdown-title">Class Probabilities</div>
+        <div class="mini-bar-row">
+          <span class="mini-bar-label">ME</span>
+          <div class="mini-bar-wrap"><div class="mini-bar" id="tm-me-bar" style="width:0%; background:var(--green)"></div></div>
+          <span class="mini-bar-pct" id="tm-me-pct">0%</span>
+        </div>
+        <div class="mini-bar-row">
+          <span class="mini-bar-label">NOT ME</span>
+          <div class="mini-bar-wrap"><div class="mini-bar" id="tm-notme-bar" style="width:0%; background:var(--red)"></div></div>
+          <span class="mini-bar-pct" id="tm-notme-pct">0%</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Comparison Table -->
+  <div class="compare-card" id="compare-card">
+    <h2>📊 Model Comparison</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Criterion</th>
+          <th>kNN (HOG + LBP)</th>
+          <th>Teachable Machine (CNN)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Prediction</td>
+          <td id="cmp-knn-label">—</td>
+          <td id="cmp-tm-label">—</td>
+        </tr>
+        <tr class="highlight">
+          <td>Confidence</td>
+          <td id="cmp-knn-conf">—</td>
+          <td id="cmp-tm-conf">—</td>
+        </tr>
+        <tr>
+          <td>Algorithm Type</td>
+          <td>Classical ML (kNN)</td>
+          <td>Deep Learning (CNN)</td>
+        </tr>
+        <tr class="highlight">
+          <td>Feature Method</td>
+          <td>HOG + LBP (hand-crafted)</td>
+          <td>Learned features (MobileNet)</td>
+        </tr>
+        <tr>
+          <td>Input Size</td>
+          <td>64 × 64 px</td>
+          <td>224 × 224 px</td>
+        </tr>
+        <tr class="highlight">
+          <td>Higher Confidence</td>
+          <td colspan="2" id="cmp-winner" style="text-align:center">—</td>
+        </tr>
+        <tr>
+          <td>Agreement</td>
+          <td colspan="2" id="cmp-agree" style="text-align:center">—</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+</div><!-- /container -->
+
+<script>
+  const imageUpload = document.getElementById('imageUpload');
+  const previewSection = document.getElementById('preview-section');
+  const previewImg = document.getElementById('preview-img');
+  const fileNameLabel = document.getElementById('file-name-label');
+  const btnCompare = document.getElementById('btn-compare');
+  const btnKnn = document.getElementById('btn-knn');
+  const btnTm = document.getElementById('btn-tm');
+  const spinner = document.getElementById('spinner');
+  const errorMsg = document.getElementById('error-msg');
+  const errorText = document.getElementById('error-text');
+
+  imageUpload.addEventListener('change', function () {
+    const file = this.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      previewImg.src = e.target.result;
+      previewSection.style.display = 'block';
+      fileNameLabel.textContent = '📁 ' + file.name + '  (' + (file.size / 1024).toFixed(1) + ' KB)';
+      btnCompare.disabled = false;
+      btnKnn.disabled = false;
+      btnTm.disabled = false;
+      hideResults(); hideError();
+    };
+    reader.readAsDataURL(file);
+  });
+
+  function hideResults() {
+    document.getElementById('knn-card').classList.remove('visible');
+    document.getElementById('tm-card').classList.remove('visible');
+    document.getElementById('compare-card').classList.remove('visible');
+  }
+
+  function hideError() { errorMsg.style.display = 'none'; }
+  function showError(msg) { errorText.textContent = msg; errorMsg.style.display = 'block'; }
+
+  function setLoading(on) {
+    spinner.className = on ? 'spinner active' : 'spinner';
+    btnCompare.disabled = on;
+    btnKnn.disabled = on;
+    btnTm.disabled = on;
+  }
+
+  function renderKNN(data) {
+    const card = document.getElementById('knn-card');
+    const isMe = data.is_me;
+    document.getElementById('knn-icon').textContent = isMe ? '✅' : '❌';
+    const v = document.getElementById('knn-verdict');
+    v.textContent = data.label;
+    v.className = 'verdict ' + (isMe ? 'me' : 'not-me');
+    const bar = document.getElementById('knn-bar');
+    bar.style.width = data.confidence + '%';
+    bar.className = 'conf-bar ' + (isMe ? 'green-bar' : 'red-bar');
+    document.getElementById('knn-pct').textContent = data.confidence + '%';
+    card.classList.add('visible');
+  }
+
+  function renderTM(data) {
+    const card = document.getElementById('tm-card');
+    const isMe = data.is_me;
+    document.getElementById('tm-icon').textContent = isMe ? '✅' : '❌';
+    const v = document.getElementById('tm-verdict');
+    v.textContent = data.label;
+    v.className = 'verdict ' + (isMe ? 'me' : 'not-me');
+    const bar = document.getElementById('tm-bar');
+    bar.style.width = data.confidence + '%';
+    bar.className = 'conf-bar ' + (isMe ? 'green-bar' : 'red-bar');
+    document.getElementById('tm-pct').textContent = data.confidence + '%';
+    if (data.all_scores) {
+      document.getElementById('tm-breakdown').style.display = 'block';
+      document.getElementById('tm-me-bar').style.width    = data.all_scores['ME'] + '%';
+      document.getElementById('tm-notme-bar').style.width = data.all_scores['NOT ME'] + '%';
+      document.getElementById('tm-me-pct').textContent    = data.all_scores['ME'] + '%';
+      document.getElementById('tm-notme-pct').textContent = data.all_scores['NOT ME'] + '%';
+    }
+    card.classList.add('visible');
+  }
+
+  function renderCompareTable(knn, tm, agreement, winner) {
+    document.getElementById('cmp-knn-label').textContent = knn.label;
+    document.getElementById('cmp-tm-label').textContent  = tm.label;
+    document.getElementById('cmp-knn-conf').textContent  = knn.confidence + '%';
+    document.getElementById('cmp-tm-conf').textContent   = tm.confidence + '%';
+    document.getElementById('cmp-winner').innerHTML =
+      '<span class="tag-winner">🏆 ' + winner + '</span>';
+    document.getElementById('cmp-agree').innerHTML = agreement
+      ? '<span class="tag-agree">✔ Models Agree</span>'
+      : '<span class="tag-disagree">✗ Models Disagree</span>';
+    document.getElementById('compare-card').classList.add('visible');
+  }
+
+  async function runCompare() {
+    const file = imageUpload.files[0];
+    if (!file) return;
+    hideResults(); hideError(); setLoading(true);
+    const fd = new FormData(); fd.append('image', file);
+    try {
+      const res = await fetch('/compare', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok) { showError(data.error || 'Server error'); return; }
+      renderKNN(data.knn);
+      renderTM(data.tm);
+      renderCompareTable(data.knn, data.tm, data.agreement, data.winner);
+    } catch (e) { showError('Could not reach server.'); }
+    finally { setLoading(false); }
+  }
+
+  async function runKNN() {
+    const file = imageUpload.files[0];
+    if (!file) return;
+    document.getElementById('knn-card').classList.remove('visible');
+    hideError(); setLoading(true);
+    const fd = new FormData(); fd.append('image', file);
+    try {
+      const res = await fetch('/predict', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok) { showError(data.error || 'Server error'); return; }
+      renderKNN(data);
+    } catch (e) { showError('Could not reach server.'); }
+    finally { setLoading(false); }
+  }
+
+  async function runTM() {
+    const file = imageUpload.files[0];
+    if (!file) return;
+    document.getElementById('tm-card').classList.remove('visible');
+    hideError(); setLoading(true);
+    const fd = new FormData(); fd.append('image', file);
+    try {
+      const res = await fetch('/predict_tm', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok) { showError(data.error || 'Server error'); return; }
+      renderTM(data);
+    } catch (e) { showError('Could not reach server.'); }
+    finally { setLoading(false); }
+  }
+</script>
+</body>
+</html>
