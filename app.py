@@ -5,6 +5,7 @@ import numpy as np
 import cv2
 import json
 import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 import tensorflow as tf
 from skimage.feature import hog, local_binary_pattern
 import tf_keras
