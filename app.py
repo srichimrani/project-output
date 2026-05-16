@@ -19,10 +19,16 @@ except Exception as e:
 app = Flask(__name__)
 
 # ── Conventional ML Model (HOG + LBP + kNN) ──────────────────────────────────
-with open('model.pkl', 'rb') as f:
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+with open(os.path.join(BASE_DIR, 'model.pkl'), 'rb') as f:
     model = pickle.load(f)
-with open('scaler.pkl', 'rb') as f:
+
+with open(os.path.join(BASE_DIR, 'scaler.pkl'), 'rb') as f:
     model_scaler = pickle.load(f)
+
+print("MODEL LOADED OK")
+print("SCALER LOADED OK")
 
 # ── TF.js model loader ────────────────────────────────────────────────────────
 def load_tfjs_model(model_json_path):
@@ -111,7 +117,10 @@ def predict():
         features        = extract_features(face)
         scaled_features = model_scaler.transform(features)
         prediction      = model.predict(scaled_features)[0]
-        confidence      = model.predict_proba(scaled_features)[0]
+        if hasattr(model, "predict_proba"):
+            confidence = model.predict_proba(scaled_features)[0]
+        else:
+            confidence = np.array([0.5, 0.5])
         is_me           = bool(prediction == 1)
         return jsonify({
             'label': 'ME' if is_me else 'NOT ME',
