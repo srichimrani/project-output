@@ -4,6 +4,7 @@ WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+ENV CUDA_VISIBLE_DEVICES=-1
 
 RUN apt-get update && apt-get install -y \
     libgl1 \
